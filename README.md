@@ -15,7 +15,7 @@ Widoczne liczniki limitu zostały usunięte z interfejsu. Logika serwera nadal u
 
 ## Wymagania
 
-- Node.js 20 lub nowszy.
+- Node.js 22.x. Plik `.node-version` wskazuje wersję `22.23.4`; `package.json` ogranicza wersję do gałęzi 22 ze względu na zgodność natywnego modułu SQLite.
 - Projekt Google Cloud z włączonym **Google Indexing API**.
 - Konto usługi Google oraz jego klucz JSON. Dla każdej obsługiwanej domeny adres e-mail konta usługi musi mieć uprawnienia właściciela w Google Search Console.
 - Jedna z baz: SQLite (domyślnie) albo MySQL.
@@ -25,7 +25,7 @@ Widoczne liczniki limitu zostały usunięte z interfejsu. Logika serwera nadal u
 ```bash
 git clone https://github.com/TWOJA-NAZWA/indexing-public.git
 cd indexing-public
-npm install
+npm ci
 npm start
 ```
 
@@ -97,6 +97,26 @@ PORT=3000 DB_DRIVER=sqlite SQLITE_PATH=/var/lib/indexing-public/indexing.sqlite 
 
 Najpierw utwórz katalog `/var/lib/indexing-public` i nadaj użytkownikowi uruchamiającemu aplikację prawo zapisu. Możesz wybrać inną trwałą lokalizację. Przy kontenerach katalog bazy musi być podłączony jako trwały wolumen. W konfiguracji z wieloma instancjami korzystaj ze wspólnej bazy MySQL.
 
+### Jednorazowy test na Render
+
+Utwórz usługę typu **Web Service** z runtime **Node** i planem **Free**, podłączając repozytorium aplikacji. Ustaw komendę instalacji (**Build Command**) na `npm ci`, a komendę startową (**Start Command**) na `npm start`. Aplikacja nie wymaga kompilowania frontendu.
+
+Ustaw zmienne środowiskowe:
+
+```env
+NODE_VERSION=22.23.4
+DB_DRIVER=sqlite
+SQLITE_PATH=/tmp/indexing.sqlite
+```
+
+Render odczytuje również `.node-version` i `engines.node`, ale zmienna `NODE_VERSION` w ustawieniach usługi ma pierwszeństwo. Jeżeli jest ustawiona na inną wersję, zmień ją na `22.23.4`. Nie używaj Node 24 ani 26 z obecną zależnością `better-sqlite3@11.10.0`.
+
+Przy takim jednorazowym teście nie potrzebujesz osobnej bazy ani trwałego dysku. SQLite utworzy się automatycznie w `/tmp`; historię, kolejkę i zapisane klucze traktuj jako dane tymczasowe, które mogą zostać utracone przy restarcie lub kolejnym wdrożeniu. Nie ustawiaj ręcznie `PORT` — serwer korzysta z wartości przekazanej przez hosting.
+
+Po zmianie wersji Node wyślij zaktualizowane pliki do repozytorium i uruchom ponowne wdrożenie z wyczyszczeniem pamięci podręcznej budowania. Sprawdź w logach, że instalacja używa Node 22. Samo otwarcie strony nie potwierdza działania SQLite; sprawdź również, czy historia ładuje się bez błędu.
+
+Źródła: [wybór wersji Node na Render](https://render.com/docs/node-version), [ograniczenia darmowego planu](https://render.com/docs/free).
+
 ### Przetwarzanie kolejki
 
 Przycisk w interfejsie uruchamia kolejkę ręcznie. Aby wykonywać to automatycznie, skonfiguruj systemowy cron lub inny harmonogram na serwerze; aplikacja nie tworzy harmonogramu samodzielnie.
@@ -134,7 +154,7 @@ Przed udostępnieniem instancji ogranicz dostęp na poziomie serwera lub sieci, 
 
 ## Rozwiązywanie problemów
 
-- **Nie działa instalacja `better-sqlite3`:** SQLite używa natywnego modułu Node.js. Jeśli `npm install` zgłasza błąd kompilacji, sprawdź, czy instalujesz zależności dla swojej wersji Node.js i czy system ma wymagane narzędzia do budowania natywnych modułów. Alternatywnie skonfiguruj MySQL.
+- **Nie działa instalacja `better-sqlite3`:** SQLite używa natywnego modułu Node.js. Sprawdź `node --version` i użyj Node 22.x. Błędy kompilacji V8, np. `PropertyCallbackInfo` bez metody `This`, przy Node 26 wynikają z niezgodności obecnego modułu SQLite z tą wersją Node. Po zmianie wersji wykonaj ponownie `npm ci`; na hostingu wyczyść również pamięć podręczną budowania. Jeżeli instalator nadal próbuje kompilować moduł, sprawdź dostępność gotowego pliku dla systemu oraz wymaganych narzędzi do kompilacji. MySQL korzysta z innego sterownika w czasie działania, ale nie pomija instalacji zależności SQLite.
 - **Strona się otwiera, ale historia/API nie działa:** sprawdź logi serwera, wartość `DB_DRIVER`, ścieżkę `SQLITE_PATH` lub ustawienia połączenia MySQL. Samo wczytanie strony nie potwierdza, że baza działa.
 - **Dane SQLite zniknęły:** upewnij się, że aplikacja uruchamia się z oczekiwanego katalogu roboczego albo ustaw `SQLITE_PATH` bezwzględną ścieżką. Sprawdź, czy katalog bazy znajduje się na trwałym dysku i czy proces ma prawo do zapisu.
 - **Kolejka nie jest wysyłana automatycznie:** sprawdź systemowy harmonogram, adres i port aplikacji, przekazanie `CRON_SECRET` do procesu serwera oraz zadania, nagłówek Bearer i logi serwera. Kolejkę można też przetworzyć z poziomu aplikacji.

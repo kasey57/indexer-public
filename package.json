@@ -4,7 +4,7 @@
   "description": "Self-hosted Google Search Console indexing tool with SQLite or MySQL storage",
   "main": "server.js",
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   },
   "scripts": {
     "start": "node server.js"
