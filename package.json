@@ -1,0 +1,20 @@
+{
+  "name": "indexing-public",
+  "version": "1.0.0",
+  "description": "Self-hosted Google Search Console indexing tool with SQLite or MySQL storage",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "googleapis": "^144.0.0",
+    "mysql2": "^3.11.0",
+    "better-sqlite3": "^11.10.0"
+  },
+  "allowScripts": {
+    "better-sqlite3@11.10.0": true
+  }
+}

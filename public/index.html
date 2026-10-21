@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="robots" content="index,follow">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Samodzielnie hostowana aplikacja do zgłaszania adresów w Google Indexing API, importowania map witryn i przeglądania historii. Obsługuje SQLite i MySQL.">
+    <title>Indexing Public — indeksowanie Google</title>
+    <style>
+        body {
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            max-width: 1440px;
+            margin: 32px auto;
+            padding: 0 20px;
+            background-color: #0f172a;
+            color: #fbfbfb;
+            font-size: 15.5px;
+            line-height: 1.55;
+            -webkit-font-smoothing: antialiased;
+            letter-spacing: 0.01em;
+        }
+
+        .layout-container {
+            display: grid;
+            grid-template-columns: 3fr 2fr;
+            gap: 24px;
+            align-items: start;
+        }
+
+        @media (max-width: 900px) {
+            .layout-container { grid-template-columns: 1fr; }
+        }
+
+        .card {
+            background: #172033;
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 16px 36px -24px rgba(0,0,0,.75);
+            margin-bottom: 20px;
+            border: 1px solid rgba(148,163,184,.14);
+        }
+
+        h1 {
+            margin-top: 0;
+            color: #fbfbfb;
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            font-size: 18px;
+            font-weight: 650;
+            letter-spacing: -0.01em;
+            color: #fbfbfb;
+            margin-top: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 10px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin: 15px 0 5px 0;
+            font-size: 14.5px;
+            color: #fbfbfb;
+        }
+
+        input[type="password"], input[type="text"], textarea {
+            width: 100%;
+            padding: 12px;
+            background-color: #1a202c;
+            border: 1px solid #4a5568;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 15px;
+            color: #fbfbfb;
+            transition: border-color 0.2s;
+        }
+
+        input[type="password"]:focus, input[type="text"]:focus, textarea:focus {
+            outline: none;
+            border-color: #1bd96a;
+        }
+
+        input[type="file"] {
+            margin: 5px 0 15px 0;
+            font-size: 13px;
+            color: #fbfbfb;
+        }
+
+        textarea {
+            height: 140px;
+            resize: vertical;
+            font-family: monospace;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 5px;
+        }
+
+        button {
+            background-color: #1bd96a;
+            color: #0f172a;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            width: 100%;
+            margin-top: 15px;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+
+        button:hover { opacity: 0.9; }
+        button:active { transform: scale(0.98); }
+        button:disabled { background-color: #4a5568; color: #a0aec0; cursor: not-allowed; }
+
+        .domain-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        .domain-table th, .domain-table td {
+            text-align: left;
+            padding: 10px 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 14px;
+        }
+
+        .domain-table th {
+            background-color: #1a202c;
+            color: #a0aec0;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0.06em;
+        }
+
+        .domain-row { cursor: pointer; transition: background 0.2s; }
+        .domain-row:hover { background-color: rgba(255, 255, 255, 0.05); }
+        .details-row { display: none; background-color: #1a202c; }
+        .details-container { padding: 5px 10px; font-size: 13.5px; }
+        .details-list { list-style: none; padding: 0; margin: 0; }
+        .details-list { list-style: none; padding: 0; margin: 0; }
+
+        .details-item {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .url-link { color: #1bd96a; text-decoration: none; word-break: break-all; }
+        .url-link:hover { text-decoration: underline; }
+
+        .status-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+        .success { background-color: rgba(27, 217, 106, 0.15); color: #1bd96a; border: 1px solid #1bd96a; }
+        .error { background-color: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid #ef4444; }
+        .info-badge { background-color: #4a5568; color: #fbfbfb; font-size: 10px; padding: 1px 4px; border-radius: 4px; font-weight: normal; display: inline-block; margin-top: 3px; }
+
+        .results-box { display: none; margin-top: 15px; background: #1a202c; border-radius: 8px; padding: 15px; border: 1px solid rgba(255,255,255,0.1); }
+        ul { list-style: none; padding: 0; margin: 0; }
+        li { padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.05); display: flex; justify-content: space-between; align-items: center; font-size: 14.5px; }
+        li:last-child { border-bottom: none; }
+
+        .refresh-btn { background: #4a5568; color: #fbfbfb; font-size: 12.5px; padding: 5px 10px; margin: 0; width: auto; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; }
+        .refresh-btn:hover { background: #718096; }
+
+        #mainPanel { display: grid; }
+        .app-header { display:flex; justify-content:space-between; align-items:center; gap:20px; padding:24px 28px; background:linear-gradient(135deg,#212a37,#182235); }
+        .app-header h1 { margin:5px 0 4px; border:0; padding:0; font-size:28px; }
+        .app-header p { margin:0; color:#a0aec0; }
+        .eyebrow { color:#1bd96a; font-size:11px; font-weight:800; letter-spacing:.12em; }
+        @media (max-width:650px) { .app-header { align-items:flex-start; flex-direction:column; } }
+
+        .error-msg { color: #ef4444; font-size: 15px; margin-top: 10px; font-weight: bold; display: none; }
+        .file-info { font-size: 12.5px; color: #a0aec0; margin-top: 2px; margin-bottom: 10px; display: block; }
+        .toggle-icon { display: inline-block; width: 12px; transition: transform 0.2s; margin-right: 3px; color: #a0aec0; }
+        .open .toggle-icon { transform: rotate(90deg); color: #1bd96a; }
+        .progress-wrap { display: none; margin-top: 15px; background: #1a202c; border-radius: 8px; padding: 12px 15px; border: 1px solid rgba(255,255,255,0.1); font-size: 14px; }
+        .progress-track { height: 10px; background: #0f172a; border-radius: 6px; overflow: hidden; margin: 8px 0; border: 1px solid rgba(255,255,255,0.1); }
+        .progress-fill { height: 100%; width: 0%; background: #1bd96a; border-radius: 6px; transition: width 0.25s; }
+        .progress-fill.indeterminate { width: 30% !important; animation: slide 1.2s infinite ease-in-out; }
+        @keyframes slide { 0% { margin-left: -30%; } 100% { margin-left: 100%; } }
+        .progress-text { color: #a0aec0; }
+        .progress-text b { color: #fbfbfb; }
+        .scroll-list { max-height: 260px; overflow-y: auto; padding-right: 6px; }
+        .scroll-list.collapsed { display: none; }
+        .toggle-details { background: none; border: none; color: #a0aec0; font-size: 11px; cursor: pointer; width: auto; margin: 0; padding: 2px 6px; font-weight: 600; }
+        .toggle-details:hover { color: #1bd96a; opacity: 1; }
+        .queue-batch { border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; margin-bottom: 8px; background: #1a202c; overflow: hidden; }
+        .queue-batch-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; font-size: 12px; color: #a0aec0; }
+        .queue-batch-head b { color: #fbfbfb; }
+        .queue-batch-actions { display: flex; gap: 6px; flex-shrink: 0; }
+        .queue-items { display: none; max-height: 260px; overflow-y: auto; border-top: 1px solid rgba(255,255,255,0.08); padding: 4px 10px; }
+        .queue-items .details-item { flex-direction: row; justify-content: space-between; align-items: center; gap: 10px; }
+        .queue-items .url-link { flex: 1; min-width: 0; }
+        .queue-items .queue-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; white-space: nowrap; }
+        .queue-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; white-space: nowrap; }
+        .history-list { max-height: 320px; overflow-y: auto; padding-right: 6px; }
+        .history-list .details-item { flex-direction: row; justify-content: space-between; align-items: center; gap: 10px; }
+        .history-list .url-link { flex: 1; min-width: 0; }
+        .quick-start { border-left: 3px solid #1bd96a; }
+        .quick-start ol { margin: 0; padding-left: 22px; color: #cbd5e1; }
+        .quick-start li { display: list-item; padding: 6px 0; border-bottom: 0; }
+        .quick-start strong { color: #fbfbfb; }
+        .quick-start code { color: #86efac; }
+    </style>
+</head>
+<body>
+
+    <div id="mainPanel" class="layout-container">
+
+        <div class="main-content">
+
+            <header class="card app-header">
+                <div><span class="eyebrow">GOOGLE SEARCH CONSOLE</span><h1>Panel indeksowania</h1><p>Zgłaszaj adresy URL, importuj mapę witryny i śledź wysłane żądania w jednym miejscu.</p></div>
+            </header>
+
+            <div class="card">
+                <h1>Zgłoś adresy do indeksowania</h1>
+                <form id="indexerForm">
+                    <div class="form-grid">
+                        <label for="urls">Adresy URL (jeden w każdym wierszu):</label>
+                        <textarea id="urls" required placeholder="https://example.com/strona-do-indeksowania"></textarea>
+
+                        <label for="serviceAccount">Adres e-mail konta usługi Google:</label>
+                        <input type="text" id="serviceAccount" placeholder="Możesz zostawić puste, aby użyć klucza zapisanego dla tej domeny">
+
+                        <label for="jsonFile">Klucz konta usługi Google Cloud (.json):</label>
+                        <input type="file" id="jsonFile" accept=".json">
+                        <span class="file-info">Przy pierwszym zgłoszeniu dla domeny wgraj klucz. Wybierz tryb prywatny, jeśli nie chcesz zapisywać go w bazie.</span>
+                        <label style="display:flex; align-items:center; gap:8px; font-weight:normal; margin-top:10px;"><input type="checkbox" id="incognito" style="width:auto;"> 🕵️ Tryb prywatny — wyślij adresy bez zapisywania ich ani klucza w bazie</label>
+                    </div>
+                    <button type="submit" id="submitBtn">Wyślij adresy URL</button>
+                </form>
+                <div class="progress-wrap" id="indexProgress">
+                    <div class="progress-text" id="indexProgressText">Przygotowywanie…</div>
+                    <div class="progress-track"><div class="progress-fill" id="indexProgressFill"></div></div>
+                </div>
+                <div class="results-box" id="results">
+                    <h3 style="margin-top:0; font-size:14px; color:#1bd96a;">Wyniki wysyłania: <span id="resultsCount" style="color:#a0aec0; font-weight:normal;"></span>
+                        <button type="button" class="toggle-details" id="resultsToggle" onclick="toggleResults()">Ukryj szczegóły ▾</button>
+                    </h3>
+                    <ul id="resultsList" class="scroll-list"></ul>
+                </div>
+            </div>
+
+            <div class="card">
+                <h1>Importuj z mapy witryny</h1>
+                <label for="sitemapUrl">Adres mapy witryny:</label>
+                <input type="text" id="sitemapUrl" placeholder="https://example.com/sitemap.xml">
+                <span class="file-info">Adresy zostaną wysłane do Google. Klucz wybierz powyżej lub użyj klucza zapisanego dla tej domeny.</span>
+                <label style="display:flex; align-items:center; gap:8px; font-weight:normal; font-size:13px; margin-top:8px;"><input type="checkbox" id="incognitoSitemap" style="width:auto;"> 🕵️ Tryb prywatny — nie zapisuj danych w bazie (wgraj klucz powyżej)</label>
+                <button type="button" id="sitemapBtn" onclick="importSitemap()">Importuj i wyślij</button>
+                <div class="progress-wrap" id="sitemapProgress">
+                    <div class="progress-text" id="sitemapProgressText">Importowanie…</div>
+                    <div class="progress-track"><div class="progress-fill indeterminate" id="sitemapProgressFill"></div></div>
+                </div>
+                <div class="results-box" id="sitemapResults">
+                    <h3 style="margin-top:0; font-size:14px; color:#1bd96a;">Wyniki importu:</h3>
+                    <ul id="sitemapResultsList"></ul>
+                </div>
+            </div>
+
+            <div class="card" id="queueCard" style="display:none;">
+                <h2>
+                    Kolejka zgłoszeń
+                    <span><button type="button" onclick="loadQueue()" class="refresh-btn">Odśwież</button>
+                    <button type="button" onclick="processQueueNow()" class="refresh-btn">Przetwórz oczekujące</button>
+                    <button type="button" onclick="clearQueue()" class="refresh-btn">Wyczyść kolejkę</button></span>
+                </h2>
+                <div id="queueBatches" style="font-size:12px; color:#a0aec0;">Kolejka jest pusta.</div>
+            </div>
+
+        </div>
+
+        <div class="sidebar">
+            <section class="card quick-start">
+                <h2>Szybki start</h2>
+                <ol>
+                    <li><strong>Włącz Google Indexing API</strong> w projekcie Google Cloud.</li>
+                    <li><strong>Utwórz konto usługi</strong>, pobierz jego klucz JSON i dodaj adres konta jako właściciela zweryfikowanej usługi w Search Console.</li>
+                    <li><strong>Wybierz sposób pracy:</strong> wklej adresy stron albo zaimportuj mapę witryny. Przy pierwszym zgłoszeniu dla domeny wgraj klucz JSON.</li>
+                    <li><strong>Sprawdź wyniki.</strong> Zgłoszenia oczekujące trafią do kolejki i zostaną przetworzone, gdy będzie to możliwe.</li>
+                </ol>
+                <p class="file-info">Klucz konta usługi jest przechowywany w skonfigurowanej bazie, chyba że wybierzesz tryb prywatny. Zabezpiecz dostęp do aplikacji.</p>
+            </section>
+            <div class="card">
+                <h2>
+                    Historia zgłoszeń
+                    <button type="button" onclick="loadHistory()" class="refresh-btn">Odśwież</button>
+                </h2>
+                <div style="display:flex; gap:8px; margin-bottom:10px;">
+                    <input type="text" id="historySearch" placeholder="Szukaj domen lub adresów URL…" oninput="renderHistoryTable(cachedDomains)" style="flex:1;">
+                    <select id="historyStatusFilter" onchange="renderHistoryTable(cachedDomains)" style="background:#1a202c; color:#fbfbfb; border:1px solid #4a5568; border-radius:6px; padding:8px;">
+                        <option value="">Wszystkie statusy</option>
+                        <option value="Success">Sukces</option>
+                        <option value="Error">Błędy</option>
+                    </select>
+                    <button type="button" onclick="exportCsv()" class="refresh-btn">Eksport CSV</button>
+                </div>
+                <table class="domain-table">
+                    <thead>
+                        <tr><th>Domena</th><th>Data / status</th></tr>
+                    </thead>
+                    <tbody id="domainTableBody">
+                        <tr><td colspan="2" style="text-align:center; color:#a0aec0;">Wczytywanie historii…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let uploadedJsonContent = "";
+        let cachedDomains = [];
+
+        // Escapowanie danych z serwera/bazy przed wstawieniem do HTML (XSS).
+        function esc(s) {
+            return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+        function escAttr(s) { return esc(s); }
+
+        // Odczytaj wybrany klucz konta usługi.
+        document.getElementById('jsonFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const parsed = JSON.parse(evt.target.result);
+                    uploadedJsonContent = evt.target.result;
+                    if (parsed.client_email) {
+                        document.getElementById('serviceAccount').value = parsed.client_email;
+                    }
+                } catch(err) {
+                    alert("Wybrany plik nie zawiera poprawnego JSON.");
+                    e.target.value = "";
+                    uploadedJsonContent = "";
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        // Otwórz wspólny panel; logowanie nie jest wymagane.
+        function startApp() { loadHistory(); }
+
+        function renderHistoryTable(domains) {
+            cachedDomains = domains || cachedDomains;
+            const q = (document.getElementById('historySearch').value || '').toLowerCase();
+            const statusFilter = document.getElementById('historyStatusFilter').value || '';
+            const tbody = document.getElementById('domainTableBody');
+            tbody.innerHTML = '';
+            const filtered = (cachedDomains || []).filter(d => {
+                if (statusFilter === 'Success' && d.status !== 'Success') return false;
+                if (statusFilter === 'Error' && d.status === 'Success') return false;
+                if (!q) return true;
+                if ((d.domain || '').toLowerCase().includes(q)) return true;
+                return (d.subUrls || []).some(u => (u.url || '').toLowerCase().includes(q));
+            });
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="2" style="text-align:center; color:#a0aec0;">Brak wyników.</td></tr>`;
+                return;
+            }
+
+            filtered.forEach((d, index) => {
+                const domainRowId = `details-${index}`;
+                const trDomain = document.createElement('tr');
+                trDomain.className = 'domain-row';
+
+                const dateObj = new Date(d.last_requested);
+                const date = dateObj.toLocaleDateString('pl-PL') + ' ' + dateObj.toLocaleTimeString('pl-PL', {hour: '2-digit', minute:'2-digit'});
+
+                const hasKeyBadge = d.google_service_account
+                    ? `<br><span class="info-badge" title="${escAttr(d.google_service_account)}">🔑 Klucz zapisany</span>`
+                    : `<br><span class="info-badge" style="background:rgba(239,68,68,0.2); color:#ef4444;">Brak zapisanego klucza</span>`;
+
+                trDomain.innerHTML = `
+                    <td>
+                        <span class="toggle-icon">▶</span> <b>${esc(d.domain)}</b> (${(d.subUrls || []).length})
+                        ${hasKeyBadge}
+                        
+                        <br><button type="button" class="refresh-btn" data-del-domain="${escAttr(d.domain)}">Usuń</button>
+                    </td>
+                    <td>
+                        ${esc(date)}
+                        <br><span class="status-badge ${d.status === 'Success' ? 'success' : 'error'}" style="margin-top:4px;">${d.status === 'Success' ? 'Sukces' : 'Błąd'}</span>
+                    </td>`;
+                trDomain.querySelector('[data-del-domain]').addEventListener('click', (ev) => {
+                    const b = ev.currentTarget;
+                    deleteDomain(ev, b.getAttribute('data-del-domain'));
+                });
+
+                const trDetails = document.createElement('tr');
+                trDetails.className = 'details-row';
+                trDetails.id = domainRowId;
+
+                let urlsHtml = '';
+                if (d.subUrls && d.subUrls.length > 0) {
+                    d.subUrls.forEach(u => {
+                        const uObj = new Date(u.requested_at);
+                        const uDate = uObj.toLocaleDateString('pl-PL') + ' ' + uObj.toLocaleTimeString('pl-PL', {hour: '2-digit', minute:'2-digit'});
+                        const safeUrl = /^https?:\/\//i.test(u.url || '') ? u.url : '#';
+                        const uid = Number(u.id) || 0;
+
+                        urlsHtml += `
+                            <li class="details-item" title="${escAttr(u.details || '')}">
+                                <a href="${escAttr(safeUrl)}" target="_blank" rel="noopener" class="url-link">${esc(u.url)}</a>
+                                <div class="queue-meta">
+                                    <span style="color:#a0aec0; font-size:10px;">${esc(uDate)}</span>
+                            <span class="status-badge ${u.status === 'Success' ? 'success' : 'error'}" style="font-size:9px; padding:1px 4px;">API: ${u.status === 'Success' ? 'OK' : 'BŁĄD'}</span>
+                                    ${uid ? `<button type="button" class="refresh-btn" data-del-url="${uid}">x</button>` : ''}
+                                </div>
+                            </li>`;
+                    });
+                } else {
+                            urlsHtml = '<li style="color:#a0aec0; padding: 5px 0;">Brak szczegółów.</li>';
+                }
+
+                trDetails.innerHTML = `<td colspan="2"><div class="details-container"><ul class="details-list history-list">${urlsHtml}</ul></div></td>`;
+                trDetails.querySelectorAll('[data-del-url]').forEach(b => {
+                    b.addEventListener('click', (ev) => deleteUrl(ev, Number(b.getAttribute('data-del-url'))));
+                });
+
+                trDomain.addEventListener('click', (e) => {
+                    if(e.target.className === 'info-badge') return;
+                    const isVisible = trDetails.style.display === 'table-row';
+                    trDetails.style.display = isVisible ? 'none' : 'table-row';
+                    if(isVisible) trDomain.classList.remove('open'); else trDomain.classList.add('open');
+                });
+
+                tbody.appendChild(trDomain);
+                tbody.appendChild(trDetails);
+            });
+        }
+
+        async function loadHistory() {
+            try {
+                const res = await fetch('/api?action=get-history', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ })
+                });
+                const data = await res.json();
+                if (res.status === 200 && data.success) {
+                    renderHistoryTable(data.domains);
+                    loadQueue();
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        async function deleteDomain(e, domain) {
+            e.stopPropagation();
+            if (!confirm('Usunąć domenę ' + domain + ' i powiązane adresy URL?')) return;
+            await fetch('/api?action=delete-domain', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ domain })
+            });
+            loadHistory();
+        }
+
+        async function deleteUrl(e, id) {
+            e.stopPropagation();
+            await fetch('/api?action=delete-url', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            });
+            loadHistory();
+        }
+
+        function exportCsv() {
+            const rows = [['domain','url','requested_at','status','details']];
+            (cachedDomains || []).forEach(d => (d.subUrls || []).forEach(u => {
+                rows.push([d.domain, u.url, u.requested_at, u.status, (u.details || '').replace(/\n/g, ' ')]);
+            }));
+            const csv = rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+            a.download = 'gsc-history.csv';
+            a.click();
+        }
+
+        function fmtDay(dayStr) {
+            const d = new Date(dayStr + 'T00:00:00');
+            const t = new Date(); t.setHours(0,0,0,0);
+            const diff = Math.round((d - t) / 86400000);
+            if (diff <= 0) return 'dzisiaj';
+            if (diff === 1) return 'jutro';
+            return d.toLocaleDateString('pl-PL') + ` (za ${diff} dni)`;
+        }
+
+        function toggleQueueBatch(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const open = el.style.display === 'block';
+            el.style.display = open ? 'none' : 'block';
+            const btn = document.querySelector(`[data-toggle="${id}"]`);
+            if (btn) btn.textContent = open ? 'Rozwiń ▸' : 'Zwiń ▾';
+        }
+
+        async function loadQueue() {
+            try {
+                const res = await fetch('/api?action=get-queue', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ })
+                });
+                const data = await res.json();
+                if (!(res.status === 200 && data.success)) return;
+                const box = document.getElementById('queueBatches');
+                const card = document.getElementById('queueCard');
+                if (!data.queue.length) {
+                    card.style.display = 'none';
+                    box.textContent = 'Kolejka jest pusta.';
+                    return;
+                }
+                card.style.display = 'block';
+                box.innerHTML = '';
+                const groups = {};
+                data.queue.forEach(q => {
+                    const key = q.domain + '||' + q.day;
+                    (groups[key] = groups[key] || []).push(q);
+                });
+                Object.entries(groups).forEach(([key, items], bi) => {
+                    const [domain, day] = key.split('||');
+                    const bid = `qb-${bi}`;
+                    const wrap = document.createElement('div');
+                    wrap.className = 'queue-batch';
+                    wrap.innerHTML = `<div class="queue-batch-head">
+                            <span>📅 <b></b> — ${esc(fmtDay(day))}: ${items.length} adresów URL</span>
+                            <span class="queue-batch-actions">
+                                <button type="button" class="refresh-btn" data-toggle="${bid}">Rozwiń ▸</button>
+                                <button type="button" class="refresh-btn" data-del-batch="1">Usuń grupę</button>
+                            </span>
+                        </div>
+                        <ul class="queue-items details-list" id="${bid}"></ul>`;
+                    wrap.querySelector('b').textContent = domain;
+                    wrap.querySelector('[data-toggle]').addEventListener('click', () => toggleQueueBatch(bid));
+                    wrap.querySelector('[data-del-batch]').addEventListener('click', (ev) => deleteBatch(ev, domain, day));
+                    const ul = wrap.querySelector('ul');
+                    items.slice(0, 500).forEach(q => {
+                        const li = document.createElement('li');
+                        li.className = 'details-item';
+                        const a = document.createElement('a');
+                        const safeQ = /^https?:\/\//i.test(q.url || '') ? q.url : '#';
+                        a.href = safeQ; a.target = '_blank'; a.rel = 'noopener'; a.className = 'url-link'; a.textContent = q.url;
+                        const meta = document.createElement('div');
+                        meta.className = 'queue-meta';
+                        meta.innerHTML = `<span style="color:#a0aec0; font-size:10px;">📅 ${esc(fmtDay(q.day))}</span>`;
+                        const del = document.createElement('button');
+                        del.type = 'button'; del.className = 'refresh-btn'; del.textContent = 'x';
+                        const qid = Number(q.id) || 0;
+                        del.addEventListener('click', (ev) => deleteQueued(ev, qid));
+                        meta.appendChild(del);
+                        li.appendChild(a);
+                        li.appendChild(meta);
+                        ul.appendChild(li);
+                    });
+                    if (items.length > 500) {
+                        const more = document.createElement('li');
+                        more.style.cssText = 'text-align:center; color:#a0aec0;';
+                        more.textContent = `… oraz ${items.length - 500} kolejnych`;
+                        ul.appendChild(more);
+                    }
+                    box.appendChild(wrap);
+                });
+            } catch(e) { console.error(e); }
+        }
+
+        function setIndexProgress(done, total, extra) {
+            const wrap = document.getElementById('indexProgress');
+            const fill = document.getElementById('indexProgressFill');
+            const txt = document.getElementById('indexProgressText');
+            wrap.style.display = 'block';
+            const pct = total > 0 ? Math.round(done / total * 100) : 0;
+            fill.style.width = pct + '%';
+            txt.innerHTML = `Wysyłanie… <b>${done} / ${total}</b> (${pct}%)${extra ? ' — ' + extra : ''}`;
+        }
+
+        function setSitemapProgress(text) {
+            const wrap = document.getElementById('sitemapProgress');
+            const txt = document.getElementById('sitemapProgressText');
+            wrap.style.display = 'block';
+            if (text) txt.innerHTML = text;
+        }
+
+        function hideSitemapProgress() {
+            document.getElementById('sitemapProgress').style.display = 'none';
+        }
+
+        function toggleResults() {
+            const list = document.getElementById('resultsList');
+            const btn = document.getElementById('resultsToggle');
+            const collapsed = list.classList.toggle('collapsed');
+            btn.textContent = collapsed ? 'Pokaż szczegóły ▸' : 'Ukryj szczegóły ▾';
+        }
+
+        async function importSitemap() {
+            const sitemapUrl = document.getElementById('sitemapUrl').value.trim();
+            if (!sitemapUrl) { alert('Wpisz adres mapy witryny.'); return; }
+            const btn = document.getElementById('sitemapBtn');
+            const box = document.getElementById('sitemapResults');
+            const list = document.getElementById('sitemapResultsList');
+            btn.disabled = true;
+            btn.innerText = 'Importowanie… (nie zamykaj tej strony)';
+            list.innerHTML = '<li>Importowanie mapy witryny i wysyłanie adresów URL…</li>';
+            box.style.display = 'block';
+            setSitemapProgress('⏳ Wczytywanie mapy witryny… <b>0 s</b>');
+            const t0 = Date.now();
+            const timer = setInterval(() => {
+                const s = Math.round((Date.now() - t0) / 1000);
+                setSitemapProgress(`⏳ Trwa import i wysyłanie… <b>${s} s</b> — nie zamykaj tej strony`);
+            }, 1000);
+            try {
+                const response = await fetch('/api?action=import-sitemap', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        googleCreds: uploadedJsonContent,
+                        serviceAccount: document.getElementById('serviceAccount').value,
+                        sitemapUrl,
+                        incognito: document.getElementById('incognitoSitemap').checked
+                    })
+                });
+                const data = await response.json();
+                list.innerHTML = '';
+                if (response.status === 200 && data.success) {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<span>Znaleziono <b>${Number(data.total) || 0}</b> adresów URL. Wysłano: <b>${Number(data.sentToday) || 0}</b>, w kolejce: <b>${Number(data.queued) || 0}</b>${data.incognito ? ' 🕵️ <i>tryb prywatny — niczego nie zapisano</i>' : ''}${data.dropped ? `, pominięto: <b>${Number(data.dropped) || 0}</b>` : ''}</span>`;
+                    list.appendChild(li);
+                    (data.batches || []).forEach(b => {
+                        const d = new Date(String(b.day) + 'T00:00:00');
+                        const bl = document.createElement('li');
+                        bl.innerHTML = `<span>📅 ${esc(d.toLocaleDateString('pl-PL'))}</span><span class="status-badge success">${Number(b.count) || 0} adresów URL</span>`;
+                        list.appendChild(bl);
+                    });
+                    document.getElementById('jsonFile').value = '';
+                    uploadedJsonContent = '';
+                    document.getElementById('serviceAccount').value = '';
+                    loadHistory();
+                } else {
+                    const li = document.createElement('li');
+                    li.style.color = '#ef4444';
+                    li.textContent = 'Błąd: ' + (data.message || 'nieznany');
+                    list.appendChild(li);
+                }
+            } catch (error) {
+                list.innerHTML = '<li style="color:#ef4444;">Błąd połączenia (przekroczono czas oczekiwania? Spróbuj ponownie; zakończone partie są już w historii lub kolejce).</li>';
+            } finally {
+                clearInterval(timer);
+                hideSitemapProgress();
+                btn.disabled = false;
+                btn.innerText = 'Importuj i wyślij';
+            }
+        }
+
+        async function processQueueNow() {
+            if (!confirm('Przetworzyć teraz oczekujące adresy URL z kolejki?')) return;
+            const res = await fetch('/api?action=process-queue', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert(`Przetworzono: ${data.processed || 0}`);
+                loadHistory();
+            } else {
+                alert('Błąd: ' + data.message);
+            }
+        }
+
+        async function deleteQueued(e, id) {
+            e.stopPropagation();
+            await fetch('/api?action=delete-queued', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            });
+            loadQueue();
+        }
+
+        async function deleteBatch(e, domain, day) {
+            e.stopPropagation();
+            if (!confirm(`Usunąć grupę dla domeny ${domain}, zaplanowaną na ${day}?`)) return;
+            await fetch('/api?action=delete-queued', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ domain, day })
+            });
+            loadQueue();
+        }
+
+        async function clearQueue() {
+            if (!confirm('Usunąć całą kolejkę (wszystkie oczekujące adresy URL)?')) return;
+            await fetch('/api?action=delete-queued', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ all: true })
+            });
+            loadQueue();
+        }
+
+        // Wyślij partie adresów URL i pokaż postęp.
+        document.getElementById('indexerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const serviceAccount = document.getElementById('serviceAccount').value;
+            const rawUrls = document.getElementById('urls').value;
+            const allUrls = [...new Set(rawUrls.split('\n').map(u => u.trim()).filter(u => u.length > 0))];
+            if (allUrls.length === 0) { alert('Dodaj co najmniej jeden adres URL.'); return; }
+
+            const submitBtn = document.getElementById('submitBtn');
+            const resultsDiv = document.getElementById('results');
+            const resultsList = document.getElementById('resultsList');
+            const BATCH = 20;
+
+            submitBtn.disabled = true;
+            resultsDiv.style.display = 'block';
+            resultsList.innerHTML = '';
+            resultsList.classList.remove('collapsed');
+            document.getElementById('resultsToggle').textContent = 'Ukryj szczegóły ▾';
+            document.getElementById('resultsCount').textContent = '';
+            setIndexProgress(0, allUrls.length, 'rozpoczynanie…');
+
+            const credsSnapshot = uploadedJsonContent;
+            const incognitoMode = document.getElementById('incognito').checked;
+            if (incognitoMode && !credsSnapshot) { alert('Tryb prywatny wymaga klucza konta usługi w formacie JSON.'); submitBtn.disabled = false; return; }
+            let done = 0, okCount = 0, errCount = 0, queuedTotal = 0, totalSent = 0, droppedTotal = 0;
+            let allBatches = [];
+            let failed = false;
+
+            for (let i = 0; i < allUrls.length; i += BATCH) {
+                const chunk = allUrls.slice(i, i + BATCH);
+                const n = Math.floor(i / BATCH) + 1;
+                const nb = Math.ceil(allUrls.length / BATCH);
+                setIndexProgress(done, allUrls.length, `partia ${n}/${nb}${incognitoMode ? ' 🕵️' : ''}`);
+                submitBtn.innerText = `Wysyłanie ${done}/${allUrls.length}… (nie zamykaj tej strony)`;
+                try {
+                    const response = await fetch('/api?action=index-urls', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ googleCreds: credsSnapshot, serviceAccount: serviceAccount, urls: chunk.join('\n'), incognito: incognitoMode })
+                    });
+                    const data = await response.json();
+                    if (response.status === 200 && data.success) {
+                        totalSent += (data.sentToday ?? (data.results || []).length);
+                        queuedTotal += (data.queued || 0);
+                        droppedTotal += (data.dropped || 0);
+                        allBatches = allBatches.concat(data.batches || []);
+                        (data.results || []).forEach(res => {
+                            done++;
+                            if (res.status === 'Success') okCount++; else errCount++;
+                            const li = document.createElement('li');
+                            const urlSpan = document.createElement('span');
+                            urlSpan.textContent = res.url;
+                            const badge = document.createElement('span');
+                            badge.className = 'status-badge ' + (res.status === 'Success' ? 'success' : 'error');
+                            badge.textContent = res.status === 'Success' ? 'OK' : 'BŁĄD';
+                            if (res.status !== 'Success' && res.details) li.title = String(res.details);
+                            li.append(urlSpan, badge);
+                            resultsList.appendChild(li);
+                        });
+                        // Queued URLs also count toward overall progress.
+                        if ((data.results || []).length === 0 && ((data.queued || 0) > 0 || (data.dropped || 0) > 0)) {
+                            done += chunk.length;
+                        } else if (((data.queued || 0) > 0 || (data.dropped || 0) > 0) && (data.results || []).length < chunk.length) {
+                            done += (chunk.length - (data.results || []).length);
+                        }
+                    } else {
+                        failed = true;
+                        done += chunk.length;
+                        const li = document.createElement('li');
+                        li.style.color = '#ef4444';
+                        li.textContent = `Partia ${n}: błąd: ${(data.message || 'nieznany')}`;
+                        resultsList.appendChild(li);
+                    }
+                } catch (error) {
+                    failed = true;
+                    done += chunk.length;
+                    const li = document.createElement('li');
+                    li.style.color = '#ef4444';
+                    li.textContent = `Partia ${n}: błąd połączenia.`;
+                    resultsList.appendChild(li);
+                }
+                setIndexProgress(done, allUrls.length, `partia ${n}/${nb}`);
+                resultsList.scrollTop = resultsList.scrollHeight;
+            }
+
+            document.getElementById('resultsCount').textContent = `Sukcesy: ${okCount}, błędy: ${errCount}${queuedTotal > 0 ? `, w kolejce: ${queuedTotal}` : ''}${droppedTotal > 0 ? `, pominięto: ${droppedTotal}` : ''}${incognitoMode ? ' 🕵️ tryb prywatny' : ''}`;
+            const summary = document.createElement('li');
+            summary.style.borderTop = '2px solid rgba(255,255,255,0.15)';
+            summary.innerHTML = `<span><b>Zakończono:</b> sukcesy: <b>${okCount}</b>, błędy: <b>${errCount}</b>${queuedTotal > 0 ? `, w kolejce: <b>${queuedTotal}</b>` : ''}${droppedTotal > 0 ? `, pominięto: <b>${droppedTotal}</b>` : ''}${incognitoMode ? ' 🕵️ <i>tryb prywatny — niczego nie zapisano w bazie</i>' : ''}${failed ? ' (niektóre partie nie powiodły się)' : ''}</span>`;
+            resultsList.prepend(summary);
+            allBatches.forEach(b => {
+                const d = new Date(String(b.day) + 'T00:00:00');
+                const bl = document.createElement('li');
+                bl.innerHTML = `<span>📅 ${esc(d.toLocaleDateString('pl-PL'))}</span><span class="status-badge success">${Number(b.count) || 0} adresów URL</span>`;
+                resultsList.prepend(bl);
+            });
+            setIndexProgress(done, allUrls.length, 'zakończono ✓');
+
+            document.getElementById('jsonFile').value = "";
+            uploadedJsonContent = "";
+            document.getElementById('serviceAccount').value = "";
+
+            loadHistory();
+            submitBtn.disabled = false;
+            submitBtn.innerText = "Wyślij adresy URL";
+        });
+
+        startApp();
+    </script>
+</body>
+</html>
